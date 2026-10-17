@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>音乐下载工具 {{ version }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, "Microsoft YaHei", sans-serif; }
+  html, body { height: 100%; background: #f0f2f5; color: #333; }
+  body { padding: 12px; max-width: 600px; margin: 0 auto; }
+
+  .header {
+    background: linear-gradient(135deg, #4a7dff, #6c5ce7);
+    color: #fff; border-radius: 12px; padding: 18px 16px;
+    margin-bottom: 12px; box-shadow: 0 2px 8px rgba(74,125,255,0.3);
+  }
+  .header h1 { font-size: 20px; font-weight: bold; }
+  .header .ver { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+
+  .notice {
+    background: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #ffb300;
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+    font-size: 12px; color: #8d6e00; line-height: 1.6;
+  }
+  .notice b { color: #e65100; }
+
+  .tabs {
+    display: flex; background: #fff; border-radius: 10px; padding: 4px;
+    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; font-size: 14px;
+    border-radius: 8px; cursor: pointer; color: #666; transition: all .2s;
+  }
+  .tab.active { background: #4a7dff; color: #fff; font-weight: bold; }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .card {
+    background: #fff; border-radius: 10px; padding: 14px;
+    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  label { font-size: 12px; color: #888; display: block; margin-bottom: 6px; }
+  input[type=text] {
+    width: 100%; padding: 12px 14px; border-radius: 8px;
+    border: 1px solid #ddd; background: #fff; color: #333;
+    font-size: 15px; outline: none; -webkit-appearance: none;
+  }
+  input[type=text]:focus { border-color: #4a7dff; }
+  input[readonly] { background: #f5f5f5; color: #666; font-size: 13px; }
+
+  .btn {
+    width: 100%; padding: 13px; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 15px; font-weight: bold;
+    margin-top: 10px; -webkit-appearance: none;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn-blue { background: #4a7dff; color: #fff; }
+  .btn-green { background: #2ecc71; color: #fff; }
+  .btn:disabled { background: #aaa !important; }
+
+  #results { margin-top: 12px; }
+  .item {
+    padding: 12px; border-radius: 8px; cursor: pointer;
+    margin-bottom: 8px; background: #f9f9f9; border: 1px solid #eee;
+  }
+  .item:active { background: #eef4ff; }
+  .item .t { font-size: 14px; color: #222; margin-bottom: 4px; }
+  .item .m { font-size: 11px; color: #888; }
+  .item.downloading { opacity: 0.6; border-color: #2ecc71; pointer-events: none; }
+
+  .progress-wrap {
+    height: 10px; background: #e0e0e0; border-radius: 5px;
+    overflow: hidden; margin-top: 10px;
+  }
+  .progress-bar {
+    height: 100%; width: 0%; background: #2ecc71;
+    transition: width .3s; border-radius: 5px;
+  }
+  #status { font-size: 13px; color: #666; margin-top: 8px; text-align: center; }
+
+  #log {
+    background: #1e1e1e; color: #9ece9e; border-radius: 8px;
+    padding: 10px; font-family: monospace; font-size: 11px;
+    max-height: 120px; overflow-y: auto; margin-top: 10px;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .hint { font-size: 11px; color: #999; margin-top: 6px; text-align: center; }
+
+  .footer {
+    text-align: center; font-size: 11px; color: #aaa;
+    padding: 16px 0 8px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>♫ 音乐下载</h1>
+  <div class="ver">{{ version }} · B站音源 · 仅供学习</div>
+</div>
+
+<div class="notice">
+  <b>📢 公告：</b>
+  直接下载 m4a 格式（手机可直接播放）· 如有 ffmpeg 自动转 MP3 · 数据来源B站，请遵守版权法。
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-page="search" onclick="showPage('search')">🎵 搜索</div>
+  <div class="tab" data-page="url" onclick="showPage('url')">🔗 链接</div>
+  <div class="tab" data-page="settings" onclick="showPage('settings')">⚙️ 设置</div>
+</div>
+
+<div class="page active" id="page-search">
+  <div class="card">
+    <label>输入歌名或歌手</label>
+    <input type="text" id="kw" placeholder="例如：周杰伦 晴天" />
+    <button class="btn btn-blue" id="searchBtn" onclick="doSearch()">搜索</button>
+    <div id="results"></div>
+    <div class="hint" id="searchHint"></div>
+  </div>
+</div>
+
+<div class="page" id="page-url">
+  <div class="card">
+    <label>粘贴 B站视频链接</label>
+    <input type="text" id="url" placeholder="https://www.bilibili.com/video/..." />
+    <button class="btn btn-green" id="dlBtn" onclick="startUrlDownload()">下载为 MP3</button>
+  </div>
+</div>
+
+<div class="page" id="page-settings">
+  <div class="card">
+    <label>MP3 保存目录</label>
+    <input type="text" id="saveDir" readonly />
+    <div class="hint" id="dirHint"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="progress-wrap"><div class="progress-bar" id="bar"></div></div>
+  <div id="status">就绪</div>
+  <div id="log"></div>
+</div>
+
+<div class="footer">
+  © 2026 PURE BATTLE<br>
+  仅供学习交流使用
+</div>
+
+<script>
+let pollTimer = null;
+
+function showPage(n) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + n).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === n));
+}
+
+function setStatus(t, p) {
+  document.getElementById('status').innerText = t;
+  if (p !== undefined) document.getElementById('bar').style.width = p + '%';
+}
+
+function log(m) {
+  const el = document.getElementById('log');
+  el.textContent += m + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function fmtDur(s) {
+  if (!s) return '';
+  s = Math.round(s);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+// 初始化
+fetch('/api/default_dir').then(r => r.json()).then(d => {
+  document.getElementById('saveDir').value = d.dir;
+  document.getElementById('dirHint').innerText = '✓ 保存到：' + d.dir;
+});
+
+function checkDir() {
+  const d = document.getElementById('saveDir').value.trim();
+  if (!d) { alert('保存目录未设置'); return false; }
+  return true;
+}
+
+function doSearch() {
+  const kw = document.getElementById('kw').value.trim();
+  if (!kw) { alert('请输入关键词'); return; }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  btn.innerText = '搜索中...';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('searchHint').innerText = '正在搜索 "' + kw + '" ...';
+
+  fetch('/api/search?kw=' + encodeURIComponent(kw))
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.innerText = '搜索';
+      if (!data.ok) {
+        document.getElementById('searchHint').innerText = '搜索失败：' + data.error;
+        return;
+      }
+      const box = document.getElementById('results');
+      document.getElementById('searchHint').innerText = '共 ' + data.items.length + ' 条结果，点击即下载';
+      box.innerHTML = '';
+      data.items.forEach((it, i) => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = '<div class="t">' + (i + 1) + '. ' + it.title + '</div>' +
+                       '<div class="m">' + (it.uploader || '') + ' · ' + fmtDur(it.duration) + '</div>';
+        div.onclick = () => startDownload(it.url, it.title);
+        box.appendChild(div);
+      });
+    })
+    .catch(e => {
+      btn.disabled = false;
+      btn.innerText = '搜索';
+      document.getElementById('searchHint').innerText = '网络错误：' + e;
+    });
+}
+
+function startUrlDownload() {
+  const url = document.getElementById('url').value.trim();
+  if (!url) { alert('请先粘贴链接'); return; }
+  startDownload(url, url);
+}
+
+function startDownload(url, title) {
+  if (!checkDir()) return;
+
+  document.querySelectorAll('.item').forEach(x => x.classList.remove('downloading'));
+  setStatus('排队中...', 0);
+  document.getElementById('log').textContent = '';
+  log('开始下载: ' + title);
+
+  fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url, save_dir: document.getElementById('saveDir').value })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) {
+      setStatus('失败：' + data.error, 0);
+      return;
+    }
+    startPolling();
+  })
+  .catch(e => {
+    setStatus('请求失败：' + e, 0);
+  });
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(s => {
+        setStatus(s.status, s.progress);
+        if (s.log && s.log.length) {
+          document.getElementById('log').textContent = s.log.join('\n');
+        }
+        if (s.done !== null) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      });
+  }, 800);
+}
+
+// 回车搜索
+document.getElementById('kw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+</script>
+</body>
+</html>
